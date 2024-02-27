@@ -9,7 +9,7 @@ import * as ethers from 'ethers';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Events from "@pioneer-platform/pioneer-events";
 import axios from "axios";
-let QUERY_KEY = 'tester-mm-mobile2'
+let QUERY_KEY = 'tester-mm-mobile-driverasdasdas'
 const apiClient = axios.create({
     baseURL: spec, // Your base URL
     headers: {
@@ -114,14 +114,12 @@ export default function Home({ navigation, GlobalState }) {
 
 
             let GLOBAL_SESSION = new Date().getTime()
-            //@SEAN MAKE THIS ADJUSTABLE
-            let TERMINAL_NAME = "local-app-nobankmm"
             let config = {
-                queryKey:QUERY_KEY,
-                username:TERMINAL_NAME,
+                queryKey:QUERY_KEY, //TODO make this generated
+                username:"driver:"+wallet.address,
                 wss:PIONEER_WS
             }
-
+            console.log("config: ", config);
             const statusLocal = await axios.get(
                 spec+ "/bankless/info"
             );
@@ -139,35 +137,31 @@ export default function Home({ navigation, GlobalState }) {
             }
 
             //get terminal info
-            let driverInfo = await apiClient.get(spec+ "/bankless/driver/"+driver.driverId);
+            let driverInfo = await apiClient.get(spec+ "/bankless/driver/private/"+driver.driverId);
             console.log("driverInfo: ", driverInfo.data);
-
-            let respRegister = await apiClient.post(
-                spec+"/bankless/terminal/submit",
-                terminal
-            );
 
             if(driverInfo.data){
                 console.log("driver: ",driver)
-                let updateDriver = await apiClient.post(
-                    spec+"/bankless/driver/update",
-                    terminal
-                );
-                console.log("updateDriver: ",updateDriver)
+                // let updateDriver = await apiClient.post(
+                //     spec+"/bankless/driver/update",
+                //     driver
+                // );
+                // console.log("updateDriver: ",updateDriver)
             }else{
                 let newDriver = await apiClient.post(
                     spec+"/bankless/driver/submit",
-                    terminal
+                    driver
                 );
                 console.log("newDriver: ",newDriver)
             }
 
             //on events
+            console.log("sub to events")
             //sub to events
             clientEvents.events.on('message', async (event) => {
                 let tag = TAG + " | events | "
                 try{
-
+                    console.log('event:',event)
                     //is online
                     //TODO push location
 
