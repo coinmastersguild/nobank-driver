@@ -132,58 +132,34 @@ export default function Home({ navigation, GlobalState }) {
             clientEvents.init()
             clientEvents.setUsername(config.username)
 
-            //get terminal info
-            let terminalInfo = await apiClient.get(spec+ "/bankless/terminal/"+TERMINAL_NAME);
-            console.log("terminalInfo: ", terminalInfo.data);
-
-            let rate
-            let TOTAL_CASH = 100
-            let TOTAL_DAI = 100
-            if(TOTAL_CASH == 0 || TOTAL_DAI == 0){
-                rate = "0"
-            } else {
-                rate = (TOTAL_CASH / TOTAL_DAI)
+            let driver = {
+                pubkey:address,
+                driverId:"driver:"+address,
+                location:[ 4.5981, -74.0758 ]
             }
 
-            if(!terminalInfo.data){
-                //register
-                let terminal = {
-                    terminalId:TERMINAL_NAME+":"+wallet.address,
-                    terminalName:TERMINAL_NAME,
-                    tradePair: "USD_DAI",
-                    rate,
-                    captable:[],
-                    sessionId: GLOBAL_SESSION,
-                    TOTAL_CASH:TOTAL_CASH.toString(),
-                    TOTAL_DAI:TOTAL_DAI.toString(),
-                    pubkey:wallet.address,
-                    fact:"",
-                    location:[ 4.5981, -74.0758 ] //@SEAN get real location
-                }
-                //clear session
-                console.log("REGISTERING TERMINAL: ",terminal)
-                let respRegister = await apiClient.post(
-                    spec+"/bankless/terminal/submit",
+            //get terminal info
+            let driverInfo = await apiClient.get(spec+ "/bankless/driver/"+driver.driverId);
+            console.log("driverInfo: ", driverInfo.data);
+
+            let respRegister = await apiClient.post(
+                spec+"/bankless/terminal/submit",
+                terminal
+            );
+
+            if(driverInfo.data){
+                console.log("driver: ",driver)
+                let updateDriver = await apiClient.post(
+                    spec+"/bankless/driver/update",
                     terminal
                 );
-                console.log("respRegister: ",respRegister.data)
-            } else {
-                //update
-                let update = {
-                    sessionId: GLOBAL_SESSION,
-                    terminalName:TERMINAL_NAME,
-                    pubkey:wallet.address,
-                    rate,
-                    TOTAL_CASH:TOTAL_CASH.toString(),
-                    TOTAL_DAI:TOTAL_DAI.toString(),
-                    captable:[],
-                    location:[ 4.5981, -74.0758 ]
-                }
-                let respRegister = await apiClient.post(
-                    spec+"/bankless/terminal/update",
-                    update
+                console.log("updateDriver: ",updateDriver)
+            }else{
+                let newDriver = await apiClient.post(
+                    spec+"/bankless/driver/submit",
+                    terminal
                 );
-                console.log("respRegister: ",respRegister.data)
+                console.log("newDriver: ",newDriver)
             }
 
             //on events
@@ -201,13 +177,7 @@ export default function Home({ navigation, GlobalState }) {
                         console.log(tag,"event: ",event)
                     }
 
-                    //LP stuff
-                    if(event.payload && (event.payload.type == "lpAdd" || event.payload.type == "lpAddAsym")){
-                        console.log(tag,"event: ",event)
-                    }
-                    if(event.payload && (event.payload.type == "lpWithdrawAsym" || event.payload.type == "lpWithdraw")){
-                        console.log(tag,"event: ",event)
-                    }
+
 
                 }catch(e){
                     console.error(e)

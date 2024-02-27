@@ -4,7 +4,7 @@ import Constants from 'expo-constants';
 export default function Header() {
     return (
         <View style={styles.header}>
-            <Text style={styles.text}>NoBank Market-Maker</Text>
+            <Text style={styles.text}>NoBank Driver</Text>
         </View>
     )
 }
