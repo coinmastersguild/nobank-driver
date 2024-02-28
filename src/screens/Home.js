@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, TextInput, TouchableOpacity, FlatList, Alert } from 'react-native';
+import { StyleSheet, View, Text, TextInput, TouchableOpacity, FlatList, Alert, Modal } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
 import * as Location from 'expo-location';
 import Header from '../components/Header';
@@ -26,13 +26,46 @@ export default function Home({ navigation, GlobalState }) {
     const { } = GlobalState;
     const [mnemonic, setMnemonic] = useState('');
     const [address, setAddress] = useState('');
+    const [balance, setBalance] = useState('');
     const [location, setLocation] = useState(null);
+    const [isOnline, setIsOnline] = useState(false);
+    const [showModal, setShowModal] = useState(false);
+    const [countdown, setCountdown] = useState(30); // 30 seconds for the countdown timer
 
-    let getBalance = async function(){
+    const acceptDelivery = () => {
+        // Handle delivery acceptance logic here
+        setShowModal(false);
+    };
+
+    const declineDelivery = () => {
+        // Handle delivery decline logic here
+        setShowModal(false);
+    };
+
+    let startSocket = async function(){
         try{
-            console.log("getBalance: ")
+            console.log("go online! ")
+
+            //sub to events
+            clientEvents.events.on('message', async (event) => {
+                let tag = TAG + " | events | "
+                try{
+                    console.log('event:',event)
+                    //is online
+                    //TODO push location
+
+                    //if match
+                    if(event.payload && event.payload.type == "match"){
+                        //handle match
+                        console.log(tag,"event: ",event)
+                    }
 
 
+
+                }catch(e){
+                    console.error(e)
+                }
+            })
 
         }catch(e){
             console.error(e)
@@ -111,7 +144,7 @@ export default function Home({ navigation, GlobalState }) {
             // Convert balanceBN from a BigNumber to a number, considering the decimals
             // const tokenBalance = balanceBN.div(ethers.BigNumber.from(10).pow(decimals)).toNumber();
             console.log("tokenBalance: ", tokenBalance);
-
+            setBalance(tokenBalance)
 
             let GLOBAL_SESSION = new Date().getTime()
             let config = {
@@ -157,26 +190,7 @@ export default function Home({ navigation, GlobalState }) {
 
             //on events
             console.log("sub to events")
-            //sub to events
-            clientEvents.events.on('message', async (event) => {
-                let tag = TAG + " | events | "
-                try{
-                    console.log('event:',event)
-                    //is online
-                    //TODO push location
 
-                    //if match
-                    if(event.payload && event.payload.type == "match"){
-                        //handle match
-                        console.log(tag,"event: ",event)
-                    }
-
-
-
-                }catch(e){
-                    console.error(e)
-                }
-            })
 
         }catch(e){
             console.error(e)
@@ -187,53 +201,48 @@ export default function Home({ navigation, GlobalState }) {
         onStart()
     }, []);
 
-/*    useEffect(() => {
-       setToDoList(prevState => [...prevState, { id: 2, task: 'go to bed' }])
-   }, [])
-    const renderItem = ({ item }) => {
-        return (
-            <TouchableOpacity
-                style={styles.task}
-                onPress={() => handleChooseTask(item)}
-            >
-                <Text>{item.task}</Text>
-            </TouchableOpacity>
-        )
-    }
-
-    const handleSaveTask = () => {
-        const index = toDoList.length + 1;
-
-        setToDoList(prevState => [...prevState, { id: index, task: task }]);
-
-        setTask('');
-    }
-
-    const handleChooseTask = (item) => {
-        setChosenTask(item);
-        navigation.navigate('ChosenTask');
-    }*/
-
     const goToLiquidityPage = () => {
         navigation.navigate('Liquidity');
     }
 
+    const toggleOnlineStatus = () => {
+        setIsOnline(!isOnline);
+        if (!isOnline) {
+            // Code to start WebSocket connection
+            startSocket();
+        } else {
+            // Code to close WebSocket connection
+            // Assuming clientEvents is your WebSocket client
+        }
+    };
+
     return (
         <View style={styles.screen}>
+            <Modal visible={showModal} animationType="slide">
+                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+                    <Text>Do you want to accept this delivery?</Text>
+                    <Text>{countdown} seconds left</Text>
+                    <TouchableOpacity onPress={() => acceptDelivery()}>
+                        <Text>Accept</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity onPress={() => declineDelivery()}>
+                        <Text>Decline</Text>
+                    </TouchableOpacity>
+                </View>
+            </Modal>
             <Header />
             <View style={styles.body}>
                 <TouchableOpacity
                     style={styles.button}
-                    onPress={() => goToLiquidityPage()}
                 >
-                    <Text style={styles.buttonText} >Generate Wallet</Text>
+                    <Text>address: {address}</Text>
                 </TouchableOpacity>
                 <TouchableOpacity
-                    style={styles.button}
-                    onPress={() => goToLiquidityPage()}
-                >
-                    <Text style={styles.buttonText} >Set Liquidity</Text>
+                    style={[styles.button, isOnline ? styles.online : styles.offline]}
+                    onPress={toggleOnlineStatus}>
+                    <Text>{isOnline ? '(currently looking for orders) Go Offline' : '(currently not looking for order) Go Online'}</Text>
                 </TouchableOpacity>
+                <Text>status online: {isOnline.toString()}</Text>
             </View>
             <View style={styles.body}>
                 <MapView style={styles.map} initialRegion={location}>
@@ -270,6 +279,14 @@ const styles = StyleSheet.create({
         shadowOpacity: 0.23,
         shadowRadius: 2.62,
         elevation: 4,
+    },
+    online: {
+        backgroundColor: '#1ccb1b', // Green color for online
+        shadowColor: "#29d522",
+    },
+    offline: {
+        backgroundColor: '#ff6347', // Red color for offline
+        shadowColor: "#ff6347",
     },
     button: {
         alignItems: 'center',
