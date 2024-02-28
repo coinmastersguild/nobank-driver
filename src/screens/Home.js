@@ -9,27 +9,27 @@ import * as ethers from 'ethers';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Events from "@pioneer-platform/pioneer-events";
 import axios from "axios";
-let QUERY_KEY = 'tester-mm-mobile-driverasdasdas'
-const apiClient = axios.create({
-    baseURL: spec, // Your base URL
-    headers: {
-        'Authorization':  QUERY_KEY// Replace 'YOUR_AUTH_TOKEN' with your actual token
-    }
-});
 // let spec = "https://cash2btc.com/spec/swagger.json"
 let spec = "https://cash2btc.com/api/v1"
 let PIONEER_WS = 'wss://cash2btc.com'
 let USDT_CONTRACT_POLYGON = "0xc2132d05d31c914a87c6611c10748aeb04b58e8f"
 const service = "https://polygon.rpc.blxrbdn.com"
+import { v4 as uuidv4 } from 'uuid';
+
 
 export default function Home({ navigation, GlobalState }) {
     const { } = GlobalState;
+    const [isLoading, setIsLoading] = useState(false);
     const [mnemonic, setMnemonic] = useState('');
     const [address, setAddress] = useState('');
+    const [username, setUsername] = useState('');
     const [balance, setBalance] = useState('');
+    const [config, setConfig] = useState(null);
     const [location, setLocation] = useState(null);
     const [isOnline, setIsOnline] = useState(false);
     const [showModal, setShowModal] = useState(false);
+    const [events, setEvents] = useState(null);
+    const [api, setClient] = useState(null);
     const [countdown, setCountdown] = useState(30); // 30 seconds for the countdown timer
 
     const acceptDelivery = () => {
@@ -45,28 +45,42 @@ export default function Home({ navigation, GlobalState }) {
     let startSocket = async function(){
         try{
             console.log("go online! ")
+            console.log("username: ",username)
+            let clientEvents = new Events.Events(config)
+            setEvents(clientEvents)
+            clientEvents.init()
+            clientEvents.setUsername(username)
 
             //sub to events
             clientEvents.events.on('message', async (event) => {
-                let tag = TAG + " | events | "
                 try{
+                    event = JSON.parse(event)
                     console.log('event:',event)
+                    console.log('event:',event.type)
                     //is online
                     //TODO push location
 
                     //if match
-                    if(event.payload && event.payload.type == "match"){
+                    if(event && event.type == "match"){
+                        console.log("MATCH EVENT!: ")
                         //handle match
-                        console.log(tag,"event: ",event)
+                        // console.log("event: ",event)
+                        setShowModal(true)
                     }
-
-
 
                 }catch(e){
                     console.error(e)
                 }
             })
+        }catch(e){
+            console.error(e)
+        }
+    }
 
+    let stopSocket = async function(){
+        try{
+            console.log("go online! ")
+            if(events) events.disconnect()
         }catch(e){
             console.error(e)
         }
@@ -75,6 +89,20 @@ export default function Home({ navigation, GlobalState }) {
     let onStart = async function(){
         try{
             console.log("onStart")
+            let QUERY_KEY = await AsyncStorage.getItem('QUERY_KEY');
+            if(!QUERY_KEY){
+                QUERY_KEY = uuidv4()
+                AsyncStorage.setItem('QUERY_KEY',QUERY_KEY);
+            }
+            const apiClient = axios.create({
+                baseURL: spec, // Your base URL
+                headers: {
+                    'Authorization':  QUERY_KEY// Replace 'YOUR_AUTH_TOKEN' with your actual token
+                }
+            });
+            setClient(apiClient)
+
+
             let { status } = await Location.requestForegroundPermissionsAsync();
             if (status !== 'granted') {
                 Alert.alert('Permission to access location was denied');
@@ -146,22 +174,19 @@ export default function Home({ navigation, GlobalState }) {
             console.log("tokenBalance: ", tokenBalance);
             setBalance(tokenBalance)
 
-            let GLOBAL_SESSION = new Date().getTime()
             let config = {
                 queryKey:QUERY_KEY, //TODO make this generated
                 username:"driver:"+wallet.address,
                 wss:PIONEER_WS
             }
+            setConfig(config)
+            setUsername("driver:"+wallet.address)
             console.log("config: ", config);
             const statusLocal = await axios.get(
                 spec+ "/bankless/info"
             );
             console.log("statusLocal: ", statusLocal.data);
 
-            //sub ALL events
-            let clientEvents = new Events.Events(config)
-            clientEvents.init()
-            clientEvents.setUsername(config.username)
 
             let driver = {
                 pubkey:address,
@@ -173,25 +198,47 @@ export default function Home({ navigation, GlobalState }) {
             let driverInfo = await apiClient.get(spec+ "/bankless/driver/private/"+driver.driverId);
             console.log("driverInfo: ", driverInfo.data);
 
-            if(driverInfo.data){
-                console.log("driver: ",driver)
-                // let updateDriver = await apiClient.post(
-                //     spec+"/bankless/driver/update",
-                //     driver
-                // );
-                // console.log("updateDriver: ",updateDriver)
+            if(driverInfo.data.driverInfo){
+                console.log("Driver found! Update!")
+                let updateDriver = await apiClient.post(
+                    spec+"/bankless/driver/update",
+                    driver
+                );
+                console.log("updateDriver: ",updateDriver.data)
             }else{
+                console.log("New Driver!")
                 let newDriver = await apiClient.post(
                     spec+"/bankless/driver/submit",
                     driver
                 );
-                console.log("newDriver: ",newDriver)
+                console.log("newDriver: ",newDriver.data)
             }
 
             //on events
-            console.log("sub to events")
-
-
+            // console.log("sub to events")
+            // let clientEvents = new Events.Events(config)
+            // setEvents(clientEvents)
+            // clientEvents.init()
+            // clientEvents.setUsername(username)
+            //
+            // //sub to events
+            // clientEvents.events.on('message', async (event) => {
+            //     try{
+            //         console.log('event:',event)
+            //         //is online
+            //         //TODO push location
+            //
+            //         //if match
+            //         if(event.payload && event.payload.type == "match"){
+            //             //handle match
+            //             console.log("event: ",event)
+            //             setShowModal(true)
+            //         }
+            //
+            //     }catch(e){
+            //         console.error(e)
+            //     }
+            // })
         }catch(e){
             console.error(e)
         }
@@ -208,9 +255,12 @@ export default function Home({ navigation, GlobalState }) {
     const toggleOnlineStatus = () => {
         setIsOnline(!isOnline);
         if (!isOnline) {
+            console.log("Starting Socket!")
             // Code to start WebSocket connection
             startSocket();
         } else {
+            console.log("Stopping Socket!")
+            stopSocket()
             // Code to close WebSocket connection
             // Assuming clientEvents is your WebSocket client
         }
@@ -218,16 +268,24 @@ export default function Home({ navigation, GlobalState }) {
 
     return (
         <View style={styles.screen}>
-            <Modal visible={showModal} animationType="slide">
-                <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-                    <Text>Do you want to accept this delivery?</Text>
-                    <Text>{countdown} seconds left</Text>
-                    <TouchableOpacity onPress={() => acceptDelivery()}>
-                        <Text>Accept</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity onPress={() => declineDelivery()}>
-                        <Text>Decline</Text>
-                    </TouchableOpacity>
+            <Modal visible={showModal} animationType="slide" transparent={true}>
+                <View style={styles.modalContainer}>
+                    <View style={styles.modalView}>
+                        {isLoading ? (
+                            <ActivityIndicator size="large" color="#0000ff" />
+                        ) : (
+                            <>
+                                <Text>Do you want to accept this delivery?</Text>
+                                <Text>{countdown} seconds left</Text>
+                                <TouchableOpacity style={styles.largeButton} onPress={() => acceptDelivery()}>
+                                    <Text style={styles.buttonText}>Accept</Text>
+                                </TouchableOpacity>
+                                <TouchableOpacity style={styles.largeButton} onPress={() => declineDelivery()}>
+                                    <Text style={styles.buttonText}>Decline</Text>
+                                </TouchableOpacity>
+                            </>
+                        )}
+                    </View>
                 </View>
             </Modal>
             <Header />
@@ -243,6 +301,12 @@ export default function Home({ navigation, GlobalState }) {
                     <Text>{isOnline ? '(currently looking for orders) Go Offline' : '(currently not looking for order) Go Online'}</Text>
                 </TouchableOpacity>
                 <Text>status online: {isOnline.toString()}</Text>
+
+                <TouchableOpacity
+                    style={styles.button}
+                    onPress={() => setShowModal(true)}>
+                    <Text>Open Modal</Text>
+                </TouchableOpacity>
             </View>
             <View style={styles.body}>
                 <MapView style={styles.map} initialRegion={location}>
@@ -255,6 +319,43 @@ export default function Home({ navigation, GlobalState }) {
 }
 
 const styles = StyleSheet.create({
+    modalContainer: {
+        flex: 1,
+        justifyContent: 'center',
+        alignItems: 'center',
+        backgroundColor: 'rgba(0, 0, 0, 0.5)', // Semi-transparent background
+    },
+    modalView: {
+        margin: 20,
+        backgroundColor: 'white',
+        borderRadius: 20,
+        padding: 35,
+        alignItems: 'center',
+        shadowColor: '#000',
+        shadowOffset: {
+            width: 0,
+            height: 2,
+        },
+        shadowOpacity: 0.25,
+        shadowRadius: 3.84,
+        elevation: 5,
+    },
+    largeButton: {
+        backgroundColor: '#1ccb1b',
+        padding: 20, // Increase padding for larger buttons
+        marginVertical: 10, // Add vertical margin
+        width: 200, // Set a fixed width for the button
+        borderRadius: 20, // Rounded corners for the button
+        alignItems: 'center',
+        shadowColor: '#29d522',
+        shadowOffset: {
+            width: 0,
+            height: 2,
+        },
+        shadowOpacity: 0.23,
+        shadowRadius: 2.62,
+        elevation: 4,
+    },
     screen: {
         flex: 1,
         backgroundColor: '#fff',
