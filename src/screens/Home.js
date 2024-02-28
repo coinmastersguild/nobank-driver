@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, View, Text, TextInput, TouchableOpacity, FlatList, Alert, Modal } from 'react-native';
+import { Linking, Platform, Button, StyleSheet, View, Text, TextInput, TouchableOpacity, FlatList, Alert, Modal } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
 import * as Location from 'expo-location';
 import Header from '../components/Header';
@@ -25,22 +25,65 @@ export default function Home({ navigation, GlobalState }) {
     const [username, setUsername] = useState('');
     const [balance, setBalance] = useState('');
     const [config, setConfig] = useState(null);
+    const [order, setOrder] = useState(null);
     const [location, setLocation] = useState(null);
     const [isOnline, setIsOnline] = useState(false);
     const [showModal, setShowModal] = useState(false);
     const [events, setEvents] = useState(null);
+    const [queryKey, setQueryKey]  = useState(null);
     const [api, setClient] = useState(null);
     const [countdown, setCountdown] = useState(30); // 30 seconds for the countdown timer
 
-    const acceptDelivery = () => {
-        // Handle delivery acceptance logic here
-        setShowModal(false);
-    };
+    const acceptDelivery = async function(){
+        try{
+            setShowModal(false);
+            console.log("order: ",order)
+            const apiClient = axios.create({
+                baseURL: spec, // Your base URL
+                headers: {
+                    'Authorization':  queryKey// Replace 'YOUR_AUTH_TOKEN' with your actual token
+                }
+            });
+            let orderUpdate = {
+                orderId:order.id,
+                type:"acceptDriver"
+            }
+            let updateOrder = await apiClient.post(
+                spec+"/bankless/order/update",
+                orderUpdate
+            );
+            console.log("updateOrder: ",updateOrder.data)
+        }catch(e){
+            console.error(e)
+        }
+    }
 
-    const declineDelivery = () => {
-        // Handle delivery decline logic here
-        setShowModal(false);
-    };
+    const declineDelivery = async function(){
+        try{
+            setShowModal(false);
+            // console.log("order: ",order)
+            // const apiClient = axios.create({
+            //     baseURL: spec, // Your base URL
+            //     headers: {
+            //         'Authorization':  queryKey// Replace 'YOUR_AUTH_TOKEN' with your actual token
+            //     }
+            // });
+            // let orderUpdate = {
+            //     orderId:order.id,
+            //     driverId:order.driverId,
+            //     customerId:order.customerId,
+            //     type:"rejectDriver"
+            // }
+            // let updateOrder = await apiClient.post(
+            //     spec+"/bankless/order/update",
+            //     orderUpdate
+            // );
+            // console.log("updateOrder: ",updateOrder.data)
+            // console.log("updateOrder: ",updateOrder.data)
+        }catch(e){
+            console.error(e)
+        }
+    }
 
     let startSocket = async function(){
         try{
@@ -66,6 +109,7 @@ export default function Home({ navigation, GlobalState }) {
                         //handle match
                         // console.log("event: ",event)
                         setShowModal(true)
+                        setOrder(event)
                     }
 
                 }catch(e){
@@ -94,6 +138,7 @@ export default function Home({ navigation, GlobalState }) {
                 QUERY_KEY = uuidv4()
                 AsyncStorage.setItem('QUERY_KEY',QUERY_KEY);
             }
+            setQueryKey(QUERY_KEY)
             const apiClient = axios.create({
                 baseURL: spec, // Your base URL
                 headers: {
@@ -276,6 +321,28 @@ export default function Home({ navigation, GlobalState }) {
                         ) : (
                             <>
                                 <Text>Do you want to accept this delivery?</Text>
+                                {
+                                    order && order.customerAddress ? (
+                                        <>
+                                            <Text>Street: {order.customerAddress.street}</Text>
+                                            <Text>City: {order.customerAddress.city}</Text>
+                                            <Text>State: {order.customerAddress.state}</Text>
+                                            <Text>Zip: {order.customerAddress.zip}</Text>
+                                            <Text>Country: {order.customerAddress.country}</Text>
+                                            <Button
+                                                title="Open in Maps"
+                                                onPress={() => {
+                                                    const address = `${order.customerAddress.street}, ${order.customerAddress.city}, ${order.customerAddress.state}, ${order.customerAddress.zip}, ${order.customerAddress.country}`;
+                                                    const query = encodeURIComponent(address);
+                                                    // For iOS devices, use "maps.apple.com" URL
+                                                    // For Android, use the "geo:" URI scheme or "google.navigation:" for turn-by-turn directions
+                                                    const scheme = Platform.OS === 'ios' ? `http://maps.apple.com/?q=${query}` : `geo:0,0?q=${query}`;
+                                                    Linking.openURL(scheme).catch((err) => console.error('An error occurred', err));
+                                                }}
+                                            />
+                                        </>
+                                    ) : null
+                                }
                                 <Text>{countdown} seconds left</Text>
                                 <TouchableOpacity style={styles.largeButton} onPress={() => acceptDelivery()}>
                                     <Text style={styles.buttonText}>Accept</Text>
